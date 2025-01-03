@@ -1,5 +1,6 @@
 # strategies/generic_strategy.py
 import pandas as pd
+import numpy as np
 from strategies.base_strategy import BaseStrategy
 from utils.logger import logger
 
@@ -9,13 +10,41 @@ from tqdm import tqdm  # For visual progress bars
 
 class GenericStrategy(BaseStrategy):
     def __init__(self, data, initial_capital, trade_fee, profit_target, stop_loss, enable_stop_loss,
-                 short_window, long_window, indicator_type, enable_sell_on_downtrend, enable_profit_target):
-        super().__init__(data, initial_capital, trade_fee, profit_target, stop_loss, enable_stop_loss)
+                 short_window, long_window, indicator_type, enable_close_long_on_downtrend,
+                 enable_close_short_on_uptrend, enable_profit_target,
+                 enable_longing=True, enable_shorting=False):
+        """
+        Initialize the Generic Strategy with configuration parameters.
+
+        Args:
+            data (pd.DataFrame): Market data.
+            initial_capital (float): Initial capital.
+            trade_fee (float): Trading fee percentage.
+            profit_target (float): Profit target percentage.
+            stop_loss (float): Stop-loss percentage.
+            enable_stop_loss (bool): Toggle stop-loss functionality.
+            short_window (int): Window for short-term indicator.
+            long_window (int): Window for long-term indicator.
+            indicator_type (str): Type of indicator (SMA, EMA, WMA, RSI, MACD).
+            enable_close_long_on_downtrend (bool): Enable closing long positions on downtrend.
+            enable_close_short_on_uptrend (bool): Enable closing short positions on uptrend.
+            enable_profit_target (bool): Enable profit target.
+            enable_longing (bool): Enable long trading.
+            enable_shorting (bool): Enable short trading.
+        """
+        super().__init__(
+            data, initial_capital, trade_fee, profit_target, stop_loss,
+            enable_stop_loss, enable_longing, enable_shorting
+        )
         self.short_window = short_window
         self.long_window = long_window
         self.indicator_type = indicator_type
-        self.enable_sell_on_downtrend = enable_sell_on_downtrend
+        self.enable_close_long_on_downtrend = enable_close_long_on_downtrend
+        self.enable_close_short_on_uptrend = enable_close_short_on_uptrend
         self.enable_profit_target = enable_profit_target
+
+        self.uptrend_triggered = False
+        self.downtrend_triggered = False
 
         # Apply indicators based on config
         self._apply_indicator()
@@ -31,44 +60,39 @@ class GenericStrategy(BaseStrategy):
         progress_bar = tqdm(total=total_steps, desc=f"Calculating {self.indicator_type}", unit="row")
 
         if self.indicator_type == 'SMA':
-            logger.info("🟢 Calculating SMA (Simple Moving Average)...")
-            self.data['SHORT_IND'] = self.data['close'].rolling(window=self.short_window, min_periods=1).mean()
+            self.data['FAST_IND'] = self.data['close'].rolling(window=self.short_window, min_periods=1).mean()
             progress_bar.update(total_steps // 2)
-            self.data['LONG_IND'] = self.data['close'].rolling(window=self.long_window, min_periods=1).mean()
+            self.data['SLOW_IND'] = self.data['close'].rolling(window=self.long_window, min_periods=1).mean()
             progress_bar.update(total_steps // 2)
 
         elif self.indicator_type == 'EMA':
-            logger.info("🟡 Calculating EMA (Exponential Moving Average)...")
-            self.data['SHORT_IND'] = self.data['close'].ewm(span=self.short_window, min_periods=1).mean()
+            self.data['FAST_IND'] = self.data['close'].ewm(span=self.short_window, min_periods=1).mean()
             progress_bar.update(total_steps // 2)
-            self.data['LONG_IND'] = self.data['close'].ewm(span=self.long_window, min_periods=1).mean()
+            self.data['SLOW_IND'] = self.data['close'].ewm(span=self.long_window, min_periods=1).mean()
             progress_bar.update(total_steps // 2)
 
         elif self.indicator_type == 'WMA':
-            logger.info("🔵 Calculating WMA (Weighted Moving Average)...")
-            self.data['SHORT_IND'] = self._calculate_weighted_moving_average(self.data['close'], self.short_window, progress_bar)
-            self.data['LONG_IND'] = self._calculate_weighted_moving_average(self.data['close'], self.long_window, progress_bar)
+            self.data['FAST_IND'] = self._calculate_weighted_moving_average(self.data['close'], self.short_window, progress_bar)
+            self.data['SLOW_IND'] = self._calculate_weighted_moving_average(self.data['close'], self.long_window, progress_bar)
 
         elif self.indicator_type == 'RSI':
-            logger.info("🟤 Calculating RSI (Relative Strength Index)...")
             delta = self.data['close'].diff()
             gain = delta.where(delta > 0, 0)
             loss = -delta.where(delta < 0, 0)
             avg_gain = gain.rolling(window=self.short_window, min_periods=1).mean()
             avg_loss = loss.rolling(window=self.short_window, min_periods=1).mean()
             rs = avg_gain / avg_loss
-            self.data['SHORT_IND'] = 100 - (100 / (1 + rs))
+            self.data['FAST_IND'] = 100 - (100 / (1 + rs))
             progress_bar.update(total_steps // 2)
-            self.data['LONG_IND'] = self.data['SHORT_IND'].rolling(window=self.long_window, min_periods=1).mean()
+            self.data['SLOW_IND'] = self.data['FAST_IND'].rolling(window=self.long_window, min_periods=1).mean()
             progress_bar.update(total_steps // 2)
 
         elif self.indicator_type == 'MACD':
-            logger.info("🟠 Calculating MACD (Moving Average Convergence Divergence)...")
-            short_ema = self.data['close'].ewm(span=self.short_window, min_periods=1).mean()
-            long_ema = self.data['close'].ewm(span=self.long_window, min_periods=1).mean()
-            self.data['SHORT_IND'] = short_ema - long_ema
+            fast_ema = self.data['close'].ewm(span=self.short_window, min_periods=1).mean()
+            slow_ema = self.data['close'].ewm(span=self.long_window, min_periods=1).mean()
+            self.data['FAST_IND'] = fast_ema - slow_ema
             progress_bar.update(total_steps // 2)
-            self.data['LONG_IND'] = self.data['SHORT_IND'].ewm(span=9, min_periods=1).mean()
+            self.data['SLOW_IND'] = self.data['FAST_IND'].ewm(span=9, min_periods=1).mean()
             progress_bar.update(total_steps // 2)
 
         else:
@@ -77,64 +101,85 @@ class GenericStrategy(BaseStrategy):
         progress_bar.close()
         logger.info(f"✅ Indicator {self.indicator_type} calculation completed.")
 
-
-    @staticmethod
-    @njit
-    def _calculate_weighted_moving_average(values, window, progress_bar):
-        """
-        Calculate the Weighted Moving Average (WMA) with Numba for performance optimization.
-        """
-        result = np.full(len(values), np.nan)
-        weights = np.arange(1, window + 1)
-
-        for i in range(window - 1, len(values)):
-            window_values = values[i - window + 1:i + 1]
-            if not np.isnan(window_values).any():
-                result[i] = np.sum(window_values * weights) / np.sum(weights)
-            if i % (len(values) // 10) == 0:  # Update progress every 10%
-                progress_bar.update(len(values) // 10)
-
-        progress_bar.update(len(values) % (len(values) // 10))
-        return result
-
     def run(self):
         logger.info("🚀 Generic Strategy run started.")
         
         for i in range(1, len(self.data)):
             current_price = self.data['close'].iloc[i]
-            short_ind = self.data['SHORT_IND'].iloc[i]
-            long_ind = self.data['LONG_IND'].iloc[i]
+            fast_ind = self.data['FAST_IND'].iloc[i]
+            slow_ind = self.data['SLOW_IND'].iloc[i]
             timestamp = self.data.index[i]
-            
-            if pd.isna(short_ind) or pd.isna(long_ind):
+
+            if pd.isna(fast_ind) or pd.isna(slow_ind):
                 continue
 
-            logger.debug(
-                f"{timestamp} - Price: {current_price:.2f}, SHORT_IND: {short_ind:.2f}, LONG_IND: {long_ind:.2f}, "
-                f"Position: {self.current_position}, Uptrend: {self.uptrend_triggered}"
-            )
+            # === LONG POSITION LOGIC ===
+            if self.enable_longing:
+                if self.current_position == 0 and not self.uptrend_triggered and fast_ind > slow_ind:
+                    self.execute_go_long(current_price, timestamp)
+                    self.uptrend_triggered = True
+                    continue
 
-            # 🟢 BUY Condition
-            if self.current_position == 0 and not self.uptrend_triggered and short_ind > long_ind:
-                self.execute_buy(current_price, timestamp)
-                self.uptrend_triggered = True
-                continue
+                if self.current_position == 1 and self.enable_stop_loss and current_price <= self.stop_loss_price:
+                    self.execute_stop_loss(current_price, timestamp)
+                    continue
 
-            # 🛑 STOP-LOSS Condition
-            if self.current_position == 1 and self.enable_stop_loss and current_price <= self.stop_loss_price:
-                self.execute_stop_loss(current_price, timestamp)
-                continue
+                # === LONG POSITION LOGIC ===
+                if self.current_position == 1:
+                    if self.enable_profit_target and self.enable_close_long_on_downtrend:
+                        # ✅ Both enabled: Check both conditions
+                        if current_price >= self.calculate_close_long_price(self.entry_price) and fast_ind < slow_ind:
+                            self.execute_close_long(current_price, timestamp)
+                    elif self.enable_profit_target:
+                        # ✅ Only Profit Target enabled
+                        if current_price >= self.calculate_close_long_price(self.entry_price):
+                            self.execute_close_long(current_price, timestamp)
+                    elif self.enable_close_long_on_downtrend:
+                        # ✅ Only Close on Downtrend enabled
+                        if fast_ind < slow_ind:
+                            self.execute_close_long(current_price, timestamp)
+                    else:
+                        # ❌ Invalid Configuration
+                        logger.error("⚠️ Invalid configuration: Both enable_profit_target and enable_close_long_on_downtrend are False.")
+                        raise ValueError("Both enable_profit_target and enable_close_long_on_downtrend cannot be False.")
 
-            # 🔴 SELL Condition
-            if self.current_position == 1:
-                if self.enable_profit_target and current_price >= self.calculate_sell_price(self.entry_price):
-                    if self.enable_sell_on_downtrend and short_ind < long_ind:
-                        self.execute_sell(current_price, timestamp)
-                    elif not self.enable_sell_on_downtrend:
-                        self.execute_sell(current_price, timestamp)
+                if fast_ind <= slow_ind:
+                    self.uptrend_triggered = False
 
-            # 🔄 Reset Uptrend Trigger
-            if short_ind <= long_ind:
-                self.uptrend_triggered = False
+            # === SHORT POSITION LOGIC ===
+            if self.enable_shorting:
+                # 🟢 Enter Short Position
+                if self.current_position == 0 and not self.downtrend_triggered and fast_ind < slow_ind:
+                    self.execute_go_short(current_price, timestamp)
+                    self.downtrend_triggered = True
+                    continue
+
+                # 🛑 Stop-Loss for Short Position
+                if self.current_position == -1 and self.enable_stop_loss and current_price >= self.stop_loss_price:
+                    self.execute_stop_loss(current_price, timestamp)
+                    continue
+
+                # 🔻 Close Short Position
+                if self.current_position == -1:
+                    if self.enable_profit_target and self.enable_close_short_on_uptrend:
+                        # Both enabled: Check both conditions
+                        if current_price <= self.calculate_close_short_price(self.entry_price) and fast_ind > slow_ind:
+                            self.execute_close_short(current_price, timestamp)
+                    elif self.enable_profit_target:
+                        # Only Profit Target enabled
+                        if current_price <= self.calculate_close_short_price(self.entry_price):
+                            self.execute_close_short(current_price, timestamp)
+                    elif self.enable_close_short_on_uptrend:
+                        # Only Sell on Downtrend enabled
+                        if fast_ind > slow_ind:
+                            self.execute_close_short(current_price, timestamp)
+                    else:
+                        # ❌ Invalid Configuration: No valid conditions to close the position
+                        logger.error("⚠️ Invalid configuration: Both enable_profit_target and enable_close_short_on_uptrend are False.")
+                        raise ValueError("Both enable_profit_target and enable_close_short_on_uptrend cannot be False.")
+
+                # 🔄 Reset Downtrend Trigger
+                if fast_ind >= slow_ind:
+                    self.downtrend_triggered = False
 
         logger.info("🏁 Generic Strategy run completed.")

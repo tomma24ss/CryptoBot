@@ -5,7 +5,7 @@ from utils.logger import logger
 
 def plot_results(df, output_file='trading_results.png'):
     """
-    Plot the trading results, including Buy, Sell, and Stop-Loss actions, for any strategy.
+    Plot the trading results, including all Long and Short transactions, for any strategy.
 
     Args:
         df (pd.DataFrame): DataFrame containing trading data.
@@ -18,10 +18,10 @@ def plot_results(df, output_file='trading_results.png'):
     # Plot Close Price
     plt.plot(df.index, df['close'], label='Close Price', linewidth=1, color='gray')
 
-    # Dynamic Plotting for Indicators
+    # Plot Indicators (if available)
     indicators = {
-        'SHORT_IND': {'label': 'Short Indicator', 'style': '--', 'color': 'blue'},
-        'LONG_IND': {'label': 'Long Indicator', 'style': '--', 'color': 'orange'}
+        'FAST_IND': {'label': 'Fast Indicator', 'style': '--', 'color': 'blue'},
+        'SLOW_IND': {'label': 'Slow Indicator', 'style': '--', 'color': 'orange'}
     }
     
     for col, params in indicators.items():
@@ -35,30 +35,26 @@ def plot_results(df, output_file='trading_results.png'):
                 color=params['color']
             )
     
-    # Plot Buy Actions
+    # Plot Long and Short Transactions
     if 'Action' in df.columns:
-        plt.plot(
-            df.index[df['Action'] == 'BUY'],
-            df['close'][df['Action'] == 'BUY'],
-            '^', color='green', markersize=6, label='Buy Action'
-        )
-    
-    # Plot Sell Actions
-    if 'Action' in df.columns:
-        plt.plot(
-            df.index[df['Action'] == 'SELL'],
-            df['close'][df['Action'] == 'SELL'],
-            'v', color='red', markersize=6, label='Sell Action'
-        )
-    
-    # Plot Stop-Loss Actions
-    if 'Action' in df.columns:
-        plt.plot(
-            df.index[df['Action'] == 'STOP-LOSS'],
-            df['close'][df['Action'] == 'STOP-LOSS'],
-            'x', color='purple', markersize=8, label='Stop-Loss Action'
-        )
-    
+        actions = [
+            ('GO_LONG', '^', 'green', 'Go Long'),
+            ('CLOSE_LONG', 'v', 'lime', 'Close Long'),
+            ('GO_SHORT', '>', 'red', 'Go Short'),
+            ('CLOSE_SHORT', '<', 'orange', 'Close Short'),
+            ('STOP-LOSS', 'x', 'purple', 'Stop-Loss')
+        ]
+        
+        for action, marker, color, label in actions:
+            plt.plot(
+                df.index[df['Action'] == action],
+                df['close'][df['Action'] == action],
+                marker,
+                color=color,
+                markersize=8,
+                label=label
+            )
+
     # Add Titles, Labels, and Grid
     plt.title('Trading Strategy Performance')
     plt.xlabel('Time')

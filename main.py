@@ -4,6 +4,7 @@ from backtest.data_loader import DataLoader
 from strategies.generic_strategy import GenericStrategy
 from backtest.performance import PerformanceMetrics
 from visualization.plot_results import plot_results
+from visualization.interactive_plot import interactive_plot_results
 from utils.logger import logger
 
 logger.info("🚀 Starting the trading bot...")
@@ -23,8 +24,11 @@ strategy = GenericStrategy(
     short_window=SHORT_WINDOW,
     long_window=LONG_WINDOW,
     indicator_type=INDICATOR_TYPE,
-    enable_sell_on_downtrend=ENABLE_SELL_ON_DOWNTREND,
-    enable_profit_target=ENABLE_PROFIT_TARGET
+    enable_close_long_on_downtrend=ENABLE_CLOSE_LONG_ON_DOWNTREND,
+    enable_close_short_on_uptrend=ENABLE_CLOSE_SHORT_ON_UPTREND,
+    enable_profit_target=ENABLE_PROFIT_TARGET,
+    enable_longing=ENABLE_LONGING,
+    enable_shorting=ENABLE_SHORTING
 )
 
 strategy.run()
@@ -36,9 +40,14 @@ PerformanceMetrics.calculate_performance(
     current_position=strategy.current_position,
     entry_price=strategy.entry_price,
     assets=strategy.assets,
-    total_fees=strategy.total_fees
+    total_fees=strategy.total_fees,
+    long_profit=strategy.long_profit,
+    long_loss=strategy.long_loss,
+    short_profit=strategy.short_profit,
+    short_loss=strategy.short_loss
 )
 
 # 📊 Plot Results
 plot_results(df)
+interactive_plot_results(df)
 logger.info("✅ Trading bot execution completed.")
