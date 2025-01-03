@@ -1,5 +1,5 @@
 # config.py
-
+MODE = 'BACKTEST'  # Mode: BACKTEST or LIVE
 INITIAL_CAPITAL = 10
 
 # Enable Long and Short Trading
@@ -34,3 +34,7 @@ END_DATE = '2022-08-01T11:59:00+00:00'
 LOG_FOLDER = './logs'
 LOG_FILE = f"{LOG_FOLDER}/trading_bot.log"
 LOG_LEVEL = 'DEBUG'
+
+# API Configuration for Live Trading
+API_KEY = 'your_api_key'
+API_SECRET = 'your_api_secret'
