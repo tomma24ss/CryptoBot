@@ -1,8 +1,7 @@
+# main.py
 from config import *
 from backtest.data_loader import DataLoader
-from strategies.ma_strategy import MovingAverageStrategy
-from strategies.trend_reversal_strategy import TrendReversalStrategy
-from strategies.wma_ema_rsi_strategy import WMA_EMA_RSI_Strategy
+from strategies.generic_strategy import GenericStrategy
 from backtest.performance import PerformanceMetrics
 from visualization.plot_results import plot_results
 from utils.logger import logger
@@ -13,40 +12,20 @@ logger.info("🚀 Starting the trading bot...")
 data_loader = DataLoader(DATA_PATH, START_DATE, END_DATE)
 df = data_loader.load_data()
 
-# 🛠️ Select and Run Strategy
-if STRATEGY == 'MovingAverageStrategy':
-    strategy = MovingAverageStrategy(
-        data=df,
-        initial_capital=INITIAL_CAPITAL,
-        trade_fee=TRADE_FEE,
-        profit_target=PROFIT_TARGET,
-        stop_loss=STOP_LOSS,
-        enable_stop_loss=ENABLE_STOP_LOSS,
-        short_window=SHORT_WINDOW,
-        long_window=LONG_WINDOW
-    )
-elif STRATEGY == 'TrendReversalStrategy':
-    strategy = TrendReversalStrategy(
-        data=df,
-        initial_capital=INITIAL_CAPITAL,
-        trade_fee=TRADE_FEE,
-        profit_target=PROFIT_TARGET,
-        stop_loss=STOP_LOSS,
-        enable_stop_loss=ENABLE_STOP_LOSS,
-        short_window=SHORT_WINDOW,
-        long_window=LONG_WINDOW
-    )
-elif STRATEGY == 'WMA_EMA_RSI_Strategy':
-    strategy = WMA_EMA_RSI_Strategy(
-        data=df,
-        initial_capital=INITIAL_CAPITAL,
-        trade_fee=TRADE_FEE,
-        profit_target=PROFIT_TARGET,
-        stop_loss=STOP_LOSS,
-        enable_stop_loss=ENABLE_STOP_LOSS,
-        short_window=SHORT_WINDOW,
-        long_window=LONG_WINDOW
-    )
+# 🛠️ Run Generic Strategy
+strategy = GenericStrategy(
+    data=df,
+    initial_capital=INITIAL_CAPITAL,
+    trade_fee=TRADE_FEE,
+    profit_target=PROFIT_TARGET,
+    stop_loss=STOP_LOSS,
+    enable_stop_loss=ENABLE_STOP_LOSS,
+    short_window=SHORT_WINDOW,
+    long_window=LONG_WINDOW,
+    indicator_type=INDICATOR_TYPE,
+    enable_sell_on_downtrend=ENABLE_SELL_ON_DOWNTREND,
+    enable_profit_target=ENABLE_PROFIT_TARGET
+)
 
 strategy.run()
 # 📈 Performance Metrics

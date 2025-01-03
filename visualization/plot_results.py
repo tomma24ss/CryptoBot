@@ -20,11 +20,8 @@ def plot_results(df, output_file='trading_results.png'):
 
     # Dynamic Plotting for Indicators
     indicators = {
-        'SMA50': {'label': 'SMA50 (Short-term)', 'style': '--', 'color': 'blue'},
-        'SMA200': {'label': 'SMA200 (Long-term)', 'style': '--', 'color': 'orange'},
-        'WMA50': {'label': 'WMA50 (Weighted Moving Average)', 'style': '-.', 'color': 'green'},
-        'EMA200': {'label': 'EMA200 (Exponential Moving Average)', 'style': '-.', 'color': 'purple'},
-        # 'RSI': {'label': 'RSI (Relative Strength Index)', 'style': ':', 'color': 'brown'}
+        'SHORT_IND': {'label': 'Short Indicator', 'style': '--', 'color': 'blue'},
+        'LONG_IND': {'label': 'Long Indicator', 'style': '--', 'color': 'orange'}
     }
     
     for col, params in indicators.items():
